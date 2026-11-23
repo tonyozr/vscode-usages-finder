@@ -3,6 +3,8 @@ name: Release
 on:
   push:
     tags: ['v*']
+  # Manual run: tags the selected commit as v<package.json version> and releases it.
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -24,18 +26,41 @@ jobs:
           # No dependency cache in the release job: avoids restoring a poisoned cache into a job holding write tokens.
       - run: npm ci
       - run: npm test
-      - name: Check tag matches package version
+      - name: Determine release tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           version="$(node -p "require('./package.json').version")"
-          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
-            echo "Tag $GITHUB_REF_NAME does not match package.json version $version" >&2
-            exit 1
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            tag="$GITHUB_REF_NAME"
+            if [ "v$version" != "$tag" ]; then
+              echo "Tag $tag does not match package.json version $version" >&2
+              exit 1
+            fi
+          else
+            tag="v$version"
+            # An existing tag must point at the commit being released.
+            existing="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" --jq '.object.sha' 2>/dev/null || true)"
+            if [ -n "$existing" ]; then
+              commit="$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$existing" --jq '.object.sha' 2>/dev/null || echo "$existing")"
+              if [ "$commit" != "$GITHUB_SHA" ]; then
+                echo "Tag $tag already exists on $commit, not on $GITHUB_SHA. Bump the version first." >&2
+                exit 1
+              fi
+            fi
           fi
+          echo "TAG=$tag" >> "$GITHUB_ENV"
       - run: npm run build
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release create "$GITHUB_REF_NAME" dist/*.vsix --generate-notes
+        run: |
+          # The release may already exist when it was drafted in the GitHub UI: attach the package to it.
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/*.vsix --clobber
+          else
+            gh release create "$TAG" dist/*.vsix --target "$GITHUB_SHA" --generate-notes
+          fi
       - name: Publish to VS Code Marketplace
         if: ${{ env.HAS_VSCE_PAT == 'true' }}
         env:
