@@ -109,6 +109,10 @@ function build(usages: Usage[], levels: GroupLevel[]): TreeNode[] {
   return nodes.sort((a, b) => compareGroups(level, a, b));
 }
 
+export function firstUsage(node: TreeNode): Usage | undefined {
+  return node.type === 'usage' ? node.usage : flatten(node.children)[0];
+}
+
 export function flatten(nodes: readonly TreeNode[]): Usage[] {
   const out: Usage[] = [];
   const visit = (list: readonly TreeNode[]) => {

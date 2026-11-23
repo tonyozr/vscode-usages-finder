@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.3
+
+- Clicking a file / type / any group opens its first usage instead of expanding or collapsing it; expanding happens only via the arrow (the extension sets `workbench.tree.expandMode` to `doubleClick` by default).
+
 ## 0.1.2
 
 - Results appear as soon as references are found: namespace / type / member are resolved in the background, without blocking the list (opening every file in the language server made the search much slower than Find References).

@@ -2,7 +2,7 @@ import * as assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { classify, ClassifyInput } from '../classifier';
 import { findContainer } from '../container';
-import { buildTree, filterUsages, flatten, normalizeLevels } from '../grouping';
+import { buildTree, filterUsages, firstUsage, flatten, normalizeLevels } from '../grouping';
 import { ALL_KINDS, Usage } from '../model';
 
 function at(line: string, name: string, extra: Partial<ClassifyInput> = {}) {
@@ -152,4 +152,14 @@ test('filters by kind, scope and text', () => {
   assert.equal(filterUsages(sample, { ...base, text: 'LIB/' }, origin).length, 1);
   assert.equal(filterUsages(sample, { ...base, text: '/src\\/[ab]\\.cpp/' }, origin).length, 3);
   assert.equal(filterUsages(sample, { ...base, text: '/(unclosed/' }, origin).length, 0);
+});
+
+test('firstUsage returns the first usage of a group or the usage itself', () => {
+  const a = usage({ type: 'A' });
+  const b = usage({ type: 'B' });
+  const tree = buildTree([a, b], ['type']);
+  assert.equal(firstUsage(tree[0]), flatten([tree[0]])[0]);
+  assert.notEqual(firstUsage(tree[0]), firstUsage(tree[1]));
+  const flat = buildTree([a], []);
+  assert.equal(firstUsage(flat[0]), a);
 });
