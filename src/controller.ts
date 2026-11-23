@@ -41,6 +41,9 @@ export class UsagesController implements vscode.Disposable {
   private access: Access = 'all';
   private text = '';
   private current = -1;
+  private details: vscode.CancellationTokenSource | undefined;
+  private detailsProgress: { done: number; total: number } | undefined;
+  private detailsTimer: ReturnType<typeof setTimeout> | undefined;
   private readonly disposables: vscode.Disposable[] = [];
 
   constructor(private readonly context: vscode.ExtensionContext) {
@@ -65,6 +68,7 @@ export class UsagesController implements vscode.Disposable {
   }
 
   dispose(): void {
+    this.stopDetails();
     this.disposables.forEach((d) => d.dispose());
   }
 
@@ -115,6 +119,7 @@ export class UsagesController implements vscode.Disposable {
   }
 
   private async search(uri: vscode.Uri, position: vscode.Position): Promise<void> {
+    this.stopDetails();
     const config = this.config();
     const outcome = await vscode.window.withProgress(
       { location: { viewId: 'usagesFinder.results' }, title: 'Finding usages...', cancellable: true },
@@ -137,6 +142,7 @@ export class UsagesController implements vscode.Disposable {
     this.result = outcome;
     this.current = -1;
     this.render();
+    this.startDetails(outcome);
     await vscode.commands.executeCommand('usagesFinder.results.focus');
     if (outcome.usages.length === 0) {
       vscode.window.showInformationMessage(
@@ -149,13 +155,71 @@ export class UsagesController implements vscode.Disposable {
     }
   }
 
+  // ----- background details -----
+
+  /** Resolves namespace / type / member after the results are shown; this is the slow part. */
+  private startDetails(result: SearchResult): void {
+    if (result.usages.length === 0) {
+      return;
+    }
+    const cts = new vscode.CancellationTokenSource();
+    this.details = cts;
+    this.detailsProgress = { done: 0, total: new Set(result.usages.map((u) => u.uri)).size };
+    this.render(undefined, true);
+    void vscode.window.withProgress({ location: { viewId: 'usagesFinder.results' } }, () =>
+      result
+        .resolveDetails(cts.token, (done, total) => {
+          if (this.details !== cts) {
+            return;
+          }
+          this.detailsProgress = { done, total };
+          this.scheduleDetailsRender();
+        })
+        .catch(() => undefined)
+        .finally(() => {
+          if (this.details !== cts) {
+            return;
+          }
+          this.details = undefined;
+          this.detailsProgress = undefined;
+          cts.dispose();
+          this.flushDetailsRender();
+        })
+    );
+  }
+
+  private stopDetails(): void {
+    this.details?.cancel();
+    this.details?.dispose();
+    this.details = undefined;
+    this.detailsProgress = undefined;
+    if (this.detailsTimer) {
+      clearTimeout(this.detailsTimer);
+      this.detailsTimer = undefined;
+    }
+  }
+
+  private scheduleDetailsRender(): void {
+    this.detailsTimer ??= setTimeout(() => this.flushDetailsRender(), 400);
+  }
+
+  private flushDetailsRender(): void {
+    if (this.detailsTimer) {
+      clearTimeout(this.detailsTimer);
+      this.detailsTimer = undefined;
+    }
+    if (this.result) {
+      this.render(undefined, true);
+    }
+  }
+
   // ----- rendering -----
 
   private filters(): Filters {
     return { kinds: this.kinds, access: this.access, scope: this.scope, text: this.text };
   }
 
-  private render(expanded = this.config().get<boolean>('expandResults', true)): void {
+  private render(expanded = this.config().get<boolean>('expandResults', true), keepState = false): void {
     const result = this.result;
     void vscode.commands.executeCommand('setContext', 'usagesFinder.hasResults', !!result);
     void vscode.commands.executeCommand('setContext', 'usagesFinder.access', this.access);
@@ -166,8 +230,9 @@ export class UsagesController implements vscode.Disposable {
       return;
     }
     const shown = filterUsages(result.usages, this.filters(), result.origin);
-    this.provider.update(shown, this.levels, expanded);
-    this.current = -1;
+    const currentUsage = keepState ? this.provider.usages[this.current] : undefined;
+    this.provider.update(shown, this.levels, expanded, keepState);
+    this.current = currentUsage ? this.provider.usages.indexOf(currentUsage) : -1;
 
     const files = new Set(shown.map((u) => u.path)).size;
     const active: string[] = [];
@@ -186,7 +251,9 @@ export class UsagesController implements vscode.Disposable {
     this.view.description = `'${result.symbolName}'`;
     const summary = `${shown.length} usage${shown.length === 1 ? '' : 's'} in ${files} file${files === 1 ? '' : 's'}`;
     const filtered = shown.length !== result.usages.length ? ` (of ${result.usages.length})` : '';
-    this.view.message = `${summary}${filtered}${active.length ? ' — ' + active.join('; ') : ''}`;
+    const progress = this.detailsProgress;
+    const resolving = progress ? ` — resolving symbols ${progress.done}/${progress.total} files…` : '';
+    this.view.message = `${summary}${filtered}${active.length ? ' — ' + active.join('; ') : ''}${resolving}`;
   }
 
   // ----- filters and grouping -----
@@ -272,6 +339,7 @@ export class UsagesController implements vscode.Disposable {
   }
 
   clear(): void {
+    this.stopDetails();
     this.result = undefined;
     this.render();
   }

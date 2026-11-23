@@ -1,6 +1,6 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { classify, HighlightKind, TargetKind } from './classifier';
+import { classify, ClassifyInput, HighlightKind, TargetKind } from './classifier';
 import { findContainer, FlatSymbol, SymbolCategory } from './container';
 import { Origin, Usage } from './model';
 import { ProjectResolver } from './projectResolver';
@@ -9,15 +9,6 @@ export interface SearchOptions {
   maxResults: number;
   includeDeclarations: boolean;
   projectMarkers: readonly string[];
-}
-
-export interface SearchResult {
-  symbolName: string;
-  uri: vscode.Uri;
-  position: vscode.Position;
-  origin: Origin;
-  usages: Usage[];
-  truncated: boolean;
 }
 
 interface Loc {
@@ -177,6 +168,67 @@ function makePreview(text: string, start: number, end: number) {
   return { preview, previewStart: ps, previewEnd: pe };
 }
 
+export interface SearchResult {
+  symbolName: string;
+  uri: vscode.Uri;
+  position: vscode.Position;
+  origin: Origin;
+  usages: Usage[];
+  truncated: boolean;
+  /**
+   * Fills in namespace / type / member and refines read/write kinds using the language server.
+   * Mutates `usages` in place and calls `onProgress` after each file. Opening files in the language
+   * server is what makes this slow (clangd parses every file), so it runs after results are shown.
+   */
+  resolveDetails(token: vscode.CancellationToken, onProgress: (done: number, total: number) => void): Promise<void>;
+}
+
+const READ_CONCURRENCY = 32;
+
+async function mapConcurrent<T>(
+  items: readonly T[],
+  limit: number,
+  token: vscode.CancellationToken,
+  fn: (item: T) => Promise<void>
+): Promise<void> {
+  let cursor = 0;
+  const worker = async () => {
+    while (cursor < items.length && !token.isCancellationRequested) {
+      await fn(items[cursor++]);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+}
+
+const decoder = new TextDecoder();
+
+/**
+ * Returns the lines of a file without opening it as a text document: `openTextDocument` makes the
+ * language server open (and, for clangd, fully parse) the file. Already open documents are reused.
+ */
+async function readLines(uri: vscode.Uri): Promise<string[] | undefined> {
+  const key = uri.toString();
+  const open = vscode.workspace.textDocuments.find((d) => d.uri.toString() === key);
+  if (open) {
+    return Array.from({ length: open.lineCount }, (_, i) => open.lineAt(i).text);
+  }
+  try {
+    return decoder.decode(await vscode.workspace.fs.readFile(uri)).split(/\r\n|\r|\n/);
+  } catch {
+    try {
+      const doc = await vscode.workspace.openTextDocument(uri);
+      return Array.from({ length: doc.lineCount }, (_, i) => doc.lineAt(i).text);
+    } catch {
+      return undefined;
+    }
+  }
+}
+
+interface Pending {
+  usage: Usage;
+  input: Omit<ClassifyInput, 'highlight'>;
+}
+
 export async function findUsages(
   uri: vscode.Uri,
   position: vscode.Position,
@@ -190,19 +242,15 @@ export async function findUsages(
   }
   const symbolName = document.getText(wordRange);
 
-  const refs = await run<Array<vscode.Location | vscode.LocationLink>>(
-    'vscode.executeReferenceProvider',
-    uri,
-    position
-  );
-  if (token.isCancellationRequested || !refs) {
-    return undefined;
-  }
-
-  const [defs, decls] = await Promise.all([
+  // Independent requests: run them together instead of one after another.
+  const [refs, defs, decls] = await Promise.all([
+    run<Array<vscode.Location | vscode.LocationLink>>('vscode.executeReferenceProvider', uri, position),
     run<Array<vscode.Location | vscode.LocationLink>>('vscode.executeDefinitionProvider', uri, position),
     run<Array<vscode.Location | vscode.LocationLink>>('vscode.executeDeclarationProvider', uri, position),
   ]);
+  if (token.isCancellationRequested || !refs) {
+    return undefined;
+  }
   const defLocs = (defs ?? []).map(toLoc);
   const declLocs = (decls ?? []).map(toLoc);
   const defKeys = new Set(defLocs.map((l) => keyOf(l.uri, l.range.start)));
@@ -236,14 +284,10 @@ export async function findUsages(
   }
 
   const targetLoc = defLocs[0] ?? declLocs[0] ?? { uri, range: wordRange };
-  let target: TargetKind = 'unknown';
-  {
-    const symbols = await loadSymbols(targetLoc.uri);
+  const targetPromise = loadSymbols(targetLoc.uri).then((symbols) => {
     const sym = findTargetSymbol(symbols, targetLoc, symbolName);
-    if (sym) {
-      target = targetOf(sym.symbolKind);
-    }
-  }
+    return sym ? targetOf(sym.symbolKind) : 'unknown';
+  });
 
   const resolver = new ProjectResolver(options.projectMarkers);
   const describePath = (u: vscode.Uri) => {
@@ -263,25 +307,96 @@ export async function findUsages(
     return { relPath: rel, directory: dir === '.' ? '' : dir, project };
   };
 
-  const usages: Usage[] = [];
-  let nextId = 0;
-  const files = [...byFile.values()];
-  let cursor = 0;
+  const [target, fileLines] = await Promise.all([
+    targetPromise,
+    (async () => {
+      const lines = new Map<string, string[]>();
+      await mapConcurrent([...byFile.keys()], READ_CONCURRENCY, token, async (k) => {
+        const content = await readLines(byFile.get(k)![0].uri);
+        if (content) {
+          lines.set(k, content);
+        }
+      });
+      return lines;
+    })(),
+  ]);
+  if (token.isCancellationRequested) {
+    return undefined;
+  }
 
-  const worker = async () => {
-    while (cursor < files.length && !token.isCancellationRequested) {
-      const fileLocs = files[cursor++];
-      const fileUri = fileLocs[0].uri;
-      let doc: vscode.TextDocument;
-      try {
-        doc = await vscode.workspace.openTextDocument(fileUri);
-      } catch {
-        continue;
-      }
+  const usages: Usage[] = [];
+  const pendingByFile = new Map<string, Pending[]>();
+  let nextId = 0;
+  for (const [k, fileLocs] of byFile) {
+    const lines = fileLines.get(k);
+    if (!lines) {
+      continue;
+    }
+    const fileUri = fileLocs[0].uri;
+    const info = describePath(fileUri);
+    const pending: Pending[] = [];
+    for (const loc of fileLocs) {
+      const { start, end } = loc.range;
+      const lineText = lines[Math.min(start.line, lines.length - 1)] ?? '';
+      const endCol = end.line === start.line ? end.character : lineText.length;
+      const key = keyOf(loc.uri, start);
+      const input = {
+        lineText,
+        startCol: start.character,
+        endCol,
+        isDefinition: defKeys.has(key),
+        isDeclaration: declKeys.has(key),
+        target,
+      };
+      const usage: Usage = {
+        id: nextId++,
+        uri: k,
+        path: fileUri.fsPath,
+        ...info,
+        namespace: '',
+        type: '',
+        member: '',
+        kind: classify(input),
+        line: start.line,
+        startCol: start.character,
+        endLine: end.line,
+        endCol: end.character,
+        ...makePreview(lineText, start.character, endCol),
+      };
+      usages.push(usage);
+      pending.push({ usage, input });
+    }
+    pendingByFile.set(k, pending);
+  }
+
+  // Highlights only refine the read/write guess for values.
+  const wantHighlights = target === 'value' || target === 'unknown';
+
+  const resolveDetails = async (
+    detailsToken: vscode.CancellationToken,
+    onProgress: (done: number, total: number) => void
+  ) => {
+    // Files that are already open are parsed already and resolve quickly: do them first.
+    const openUris = new Set(vscode.workspace.textDocuments.map((d) => d.uri.toString()));
+    const keys = [...pendingByFile.keys()].sort((a, b) => Number(openUris.has(b)) - Number(openUris.has(a)));
+    let done = 0;
+    await mapConcurrent(keys, CONCURRENCY, detailsToken, async (k) => {
+      const pending = pendingByFile.get(k)!;
+      const fileUri = vscode.Uri.parse(k);
+      const first = pending[0].usage;
       const [symbols, highlights] = await Promise.all([
         loadSymbols(fileUri),
-        run<vscode.DocumentHighlight[]>('vscode.executeDocumentHighlights', fileUri, fileLocs[0].range.start),
+        wantHighlights
+          ? run<vscode.DocumentHighlight[]>(
+              'vscode.executeDocumentHighlights',
+              fileUri,
+              new vscode.Position(first.line, first.startCol)
+            )
+          : Promise.resolve(undefined),
       ]);
+      if (detailsToken.isCancellationRequested) {
+        return;
+      }
       const highlightKinds = new Map<string, HighlightKind>();
       for (const h of highlights ?? []) {
         highlightKinds.set(
@@ -293,43 +408,13 @@ export async function findUsages(
               : 'text'
         );
       }
-      const info = describePath(fileUri);
-
-      for (const loc of fileLocs) {
-        const { start, end } = loc.range;
-        const lineText = doc.lineAt(Math.min(start.line, doc.lineCount - 1)).text;
-        const endCol = end.line === start.line ? end.character : lineText.length;
-        const key = keyOf(loc.uri, start);
-        const kind = classify({
-          lineText,
-          startCol: start.character,
-          endCol,
-          isDefinition: defKeys.has(key),
-          isDeclaration: declKeys.has(key),
-          target,
-          highlight: highlightKinds.get(`${start.line}:${start.character}`),
-        });
-        const container = findContainer(symbols, start.line, start.character);
-        usages.push({
-          id: nextId++,
-          uri: fileUri.toString(),
-          path: fileUri.fsPath,
-          ...info,
-          ...container,
-          kind,
-          line: start.line,
-          startCol: start.character,
-          endLine: end.line,
-          endCol: end.character,
-          ...makePreview(lineText, start.character, endCol),
-        });
+      for (const { usage, input } of pending) {
+        Object.assign(usage, findContainer(symbols, usage.line, usage.startCol));
+        usage.kind = classify({ ...input, highlight: highlightKinds.get(`${usage.line}:${usage.startCol}`) });
       }
-    }
+      onProgress(++done, keys.length);
+    });
   };
-  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, files.length) }, worker));
-  if (token.isCancellationRequested) {
-    return undefined;
-  }
 
   const originInfo = describePath(uri);
   return {
@@ -339,5 +424,6 @@ export async function findUsages(
     origin: { path: uri.fsPath, directory: originInfo.directory, project: originInfo.project },
     usages,
     truncated,
+    resolveDetails,
   };
 }

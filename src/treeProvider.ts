@@ -48,12 +48,17 @@ export class UsagesTreeProvider implements vscode.TreeDataProvider<TreeNode> {
     return this.usageNodes.get(usage.id);
   }
 
-  /** Replaces the displayed usages. A new generation resets the expansion state of all items. */
-  update(usages: readonly Usage[], levels: readonly GroupLevel[], expanded: boolean): void {
+  /**
+   * Replaces the displayed usages. A new generation resets the expansion state of all items;
+   * with `keepState` item ids stay the same, so expanded groups and the selection survive.
+   */
+  update(usages: readonly Usage[], levels: readonly GroupLevel[], expanded: boolean, keepState = false): void {
     this.shownUsages = usages;
     this.levels = levels;
-    this.expanded = expanded;
-    this.generation++;
+    if (!keepState) {
+      this.expanded = expanded;
+      this.generation++;
+    }
     this.roots = buildTree(usages, levels);
     this.parents.clear();
     this.usageNodes.clear();

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Results appear as soon as references are found: namespace / type / member are resolved in the background, without blocking the list (opening every file in the language server made the search much slower than Find References).
+- Reference, definition and declaration lookups run in parallel.
+- Fix namespace / type / member missing for usages inside namespaces (nested document symbols were ignored).
+
 ## 0.1.1
 
 - Fix packaging on a clean checkout (`dist/` is created before `vsce package`).
