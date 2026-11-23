@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.2
 
 - Results appear as soon as references are found: namespace / type / member are resolved in the background, without blocking the list (opening every file in the language server made the search much slower than Find References).
 - Reference, definition and declaration lookups run in parallel.
