@@ -127,10 +127,14 @@ export class UsagesTreeProvider implements vscode.TreeDataProvider<TreeNode> {
     item.iconPath = new vscode.ThemeIcon(KIND_ICONS[u.kind]);
     item.contextValue = 'usage';
     const container = [u.namespace, u.type, u.member].filter(Boolean).join(' › ');
-    item.tooltip = new vscode.MarkdownString(
-      `**${KIND_LABELS[u.kind]}**  \n${u.relPath}:${u.line + 1}:${u.startCol + 1}` +
-        (container ? `  \n${container.replace(/[\\`*_{}[\]<>()#+\-.!|]/g, '\\$&')}` : '')
-    );
+    // File paths and symbol names come from the workspace: append them as escaped text, never as markdown.
+    const tooltip = new vscode.MarkdownString()
+      .appendMarkdown(`**${KIND_LABELS[u.kind]}**  \n`)
+      .appendText(`${u.relPath}:${u.line + 1}:${u.startCol + 1}`);
+    if (container) {
+      tooltip.appendMarkdown('  \n').appendText(container);
+    }
+    item.tooltip = tooltip;
     item.command = { command: 'usagesFinder.open', title: 'Open Usage', arguments: [u] };
     return item;
   }

@@ -11,13 +11,17 @@ jobs:
   release:
     runs-on: ubuntu-latest
     env:
-      VSCE_PAT: ${{ secrets.VSCE_PAT }}
+      # Only a flag at job level: the token itself is exposed to the publish step alone,
+      # not to `npm ci` / `npm test`, which run third-party code.
+      HAS_VSCE_PAT: ${{ secrets.VSCE_PAT != '' }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
+          # No dependency cache in the release job: avoids restoring a poisoned cache into a job holding write tokens.
       - run: npm ci
       - run: npm test
       - name: Check tag matches package version
@@ -33,5 +37,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release create "$GITHUB_REF_NAME" dist/*.vsix --generate-notes
       - name: Publish to VS Code Marketplace
-        if: ${{ env.VSCE_PAT != '' }}
+        if: ${{ env.HAS_VSCE_PAT == 'true' }}
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
         run: npx vsce publish --no-dependencies --packagePath dist/*.vsix

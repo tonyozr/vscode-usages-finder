@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { UsagesController } from './controller';
 import { TreeNode } from './grouping';
+import { Usage } from './model';
 
 export function activate(context: vscode.ExtensionContext): void {
   const controller = new UsagesController(context);
@@ -30,7 +31,8 @@ export function activate(context: vscode.ExtensionContext): void {
   reg('usagesFinder.previous', () => controller.step(-1));
   reg('usagesFinder.copyResults', () => controller.copyResults());
   reg('usagesFinder.clear', () => controller.clear());
-  reg('usagesFinder.open', (usage) => controller.open(usage));
+  // Internal command used by tree items; ignore calls without a usage from the current results.
+  reg('usagesFinder.open', (usage?: Usage) => (controller.isKnownUsage(usage) ? controller.open(usage) : undefined));
   reg('usagesFinder.openToSide', (node: TreeNode) => {
     const usage = usageOf(node);
     return usage && controller.open(usage, { toSide: true, preserveFocus: false });

@@ -20,6 +20,12 @@ import { UsagesTreeProvider } from './treeProvider';
 
 const LEVELS_KEY = 'usagesFinder.groupBy';
 
+/** Workspace settings are not validated against the schema: guard against 0, negatives, NaN and strings. */
+function sanitizeMaxResults(value: unknown): number {
+  const n = Math.floor(Number(value));
+  return Number.isFinite(n) && n >= 1 ? n : 5000;
+}
+
 interface FindPreset {
   kinds?: UsageKind[];
   access?: Access;
@@ -117,7 +123,7 @@ export class UsagesController implements vscode.Disposable {
           uri,
           position,
           {
-            maxResults: config.get<number>('maxResults', 5000),
+            maxResults: sanitizeMaxResults(config.get<number>('maxResults', 5000)),
             includeDeclarations: config.get<boolean>('includeDeclarations', true),
             projectMarkers: config.get<string[]>('projectMarkers', []),
           },
@@ -271,6 +277,11 @@ export class UsagesController implements vscode.Disposable {
   }
 
   // ----- navigation -----
+
+  /** True when `usage` is one of the usages currently shown in the tree. */
+  isKnownUsage(usage: Usage | undefined): usage is Usage {
+    return !!usage && this.provider.usages.includes(usage);
+  }
 
   async open(usage: Usage, options: { toSide?: boolean; preserveFocus?: boolean } = {}): Promise<void> {
     this.current = this.provider.usages.indexOf(usage);
