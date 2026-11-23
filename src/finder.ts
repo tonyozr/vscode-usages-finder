@@ -131,11 +131,13 @@ async function loadSymbols(uri: vscode.Uri): Promise<RawSymbol[]> {
     });
   const visit = (list: ReadonlyArray<vscode.DocumentSymbol | vscode.SymbolInformation>) => {
     for (const s of list) {
-      if ('location' in s) {
-        add(s.name, s.kind, s.location.range, s.location.range);
-      } else {
+      // The command returns objects that are both SymbolInformation and DocumentSymbol,
+      // so check for the hierarchical shape first or nested symbols are lost.
+      if ('children' in s && 'selectionRange' in s) {
         add(s.name, s.kind, s.range, s.selectionRange);
-        visit(s.children);
+        visit(s.children ?? []);
+      } else if ('location' in s) {
+        add(s.name, s.kind, s.location.range, s.location.range);
       }
     }
   };
