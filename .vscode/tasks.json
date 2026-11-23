@@ -1,0 +1,20 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build: package vsix to dist",
+      "type": "npm",
+      "script": "build",
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": "$tsc",
+      "detail": "Compile and package the extension into dist/*.vsix"
+    },
+    {
+      "label": "install: from dist",
+      "type": "npm",
+      "script": "install:local",
+      "dependsOn": "build: package vsix to dist",
+      "problemMatcher": []
+    }
+  ]
+}

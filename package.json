@@ -1,0 +1,434 @@
+{
+  "name": "vscode-usages-finder",
+  "displayName": "Usages Finder",
+  "description": "Find usages of a symbol with read/write classification, usage-kind filters, scopes and multi-level grouping. Built with C/C++ in mind, works with any language that provides references.",
+  "version": "0.1.0",
+  "publisher": "tonyozr",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tonyozr/vscode-usages-finder"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Other"
+  ],
+  "keywords": [
+    "usages",
+    "references",
+    "find usages",
+    "c++",
+    "read write"
+  ],
+  "main": "./out/extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "viewsContainers": {
+      "panel": [
+        {
+          "id": "usagesFinder",
+          "title": "Usages",
+          "icon": "$(references)"
+        }
+      ]
+    },
+    "views": {
+      "usagesFinder": [
+        {
+          "id": "usagesFinder.results",
+          "name": "Usages",
+          "icon": "$(references)"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "usagesFinder.results",
+        "contents": "No usages to show.\n[Find Usages](command:usagesFinder.find)\nPlace the cursor on a symbol and run the command.",
+        "when": "!usagesFinder.hasResults"
+      }
+    ],
+    "commands": [
+      {
+        "command": "usagesFinder.find",
+        "title": "Find Usages",
+        "category": "Usages",
+        "icon": "$(search)"
+      },
+      {
+        "command": "usagesFinder.findReads",
+        "title": "Find Usages: Reads Only (Read and Read/Write)",
+        "category": "Usages"
+      },
+      {
+        "command": "usagesFinder.findWrites",
+        "title": "Find Usages: Writes Only (Write and Read/Write)",
+        "category": "Usages"
+      },
+      {
+        "command": "usagesFinder.filterReads",
+        "title": "Show Reads Only",
+        "category": "Usages",
+        "icon": "$(eye)"
+      },
+      {
+        "command": "usagesFinder.filterReadsActive",
+        "title": "Reads Only (click to show all)",
+        "category": "Usages",
+        "icon": "$(eye-closed)"
+      },
+      {
+        "command": "usagesFinder.filterWrites",
+        "title": "Show Writes Only",
+        "category": "Usages",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "usagesFinder.filterWritesActive",
+        "title": "Writes Only (click to show all)",
+        "category": "Usages",
+        "icon": "$(discard)"
+      },
+      {
+        "command": "usagesFinder.refresh",
+        "title": "Refresh",
+        "category": "Usages",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "usagesFinder.groupBy",
+        "title": "Group By...",
+        "category": "Usages",
+        "icon": "$(list-tree)"
+      },
+      {
+        "command": "usagesFinder.filterKinds",
+        "title": "Filter by Usage Kind...",
+        "category": "Usages",
+        "icon": "$(filter)"
+      },
+      {
+        "command": "usagesFinder.setScope",
+        "title": "Set Scope...",
+        "category": "Usages",
+        "icon": "$(target)"
+      },
+      {
+        "command": "usagesFinder.filterText",
+        "title": "Filter by Text...",
+        "category": "Usages",
+        "icon": "$(search-fuzzy)"
+      },
+      {
+        "command": "usagesFinder.resetFilters",
+        "title": "Reset Filters",
+        "category": "Usages",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "usagesFinder.expandAll",
+        "title": "Expand All",
+        "category": "Usages",
+        "icon": "$(expand-all)"
+      },
+      {
+        "command": "usagesFinder.next",
+        "title": "Go to Next Usage",
+        "category": "Usages",
+        "icon": "$(arrow-down)"
+      },
+      {
+        "command": "usagesFinder.previous",
+        "title": "Go to Previous Usage",
+        "category": "Usages",
+        "icon": "$(arrow-up)"
+      },
+      {
+        "command": "usagesFinder.copyResults",
+        "title": "Copy Results",
+        "category": "Usages",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "usagesFinder.clear",
+        "title": "Clear Results",
+        "category": "Usages",
+        "icon": "$(close-all)"
+      },
+      {
+        "command": "usagesFinder.openToSide",
+        "title": "Open to the Side",
+        "category": "Usages"
+      },
+      {
+        "command": "usagesFinder.copyUsage",
+        "title": "Copy Usage Line",
+        "category": "Usages"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "usagesFinder.find",
+        "key": "shift+alt+f12",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "usagesFinder.next",
+        "key": "ctrl+alt+pagedown",
+        "when": "usagesFinder.hasResults"
+      },
+      {
+        "command": "usagesFinder.previous",
+        "key": "ctrl+alt+pageup",
+        "when": "usagesFinder.hasResults"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "usagesFinder.find",
+          "when": "editorHasReferenceProvider",
+          "group": "navigation@100"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "usagesFinder.next",
+          "when": "view == usagesFinder.results && usagesFinder.hasResults",
+          "group": "navigation@1"
+        },
+        {
+          "command": "usagesFinder.previous",
+          "when": "view == usagesFinder.results && usagesFinder.hasResults",
+          "group": "navigation@2"
+        },
+        {
+          "command": "usagesFinder.groupBy",
+          "when": "view == usagesFinder.results",
+          "group": "navigation@3"
+        },
+        {
+          "command": "usagesFinder.filterReads",
+          "when": "view == usagesFinder.results && usagesFinder.access != read",
+          "group": "navigation@4"
+        },
+        {
+          "command": "usagesFinder.filterReadsActive",
+          "when": "view == usagesFinder.results && usagesFinder.access == read",
+          "group": "navigation@4"
+        },
+        {
+          "command": "usagesFinder.filterWrites",
+          "when": "view == usagesFinder.results && usagesFinder.access != write",
+          "group": "navigation@5"
+        },
+        {
+          "command": "usagesFinder.filterWritesActive",
+          "when": "view == usagesFinder.results && usagesFinder.access == write",
+          "group": "navigation@5"
+        },
+        {
+          "command": "usagesFinder.filterKinds",
+          "when": "view == usagesFinder.results",
+          "group": "navigation@7"
+        },
+        {
+          "command": "usagesFinder.setScope",
+          "when": "view == usagesFinder.results",
+          "group": "navigation@8"
+        },
+        {
+          "command": "usagesFinder.filterText",
+          "when": "view == usagesFinder.results",
+          "group": "navigation@9"
+        },
+        {
+          "command": "usagesFinder.expandAll",
+          "when": "view == usagesFinder.results",
+          "group": "navigation@10"
+        },
+        {
+          "command": "usagesFinder.refresh",
+          "when": "view == usagesFinder.results",
+          "group": "navigation@11"
+        },
+        {
+          "command": "usagesFinder.resetFilters",
+          "when": "view == usagesFinder.results",
+          "group": "1_filters@1"
+        },
+        {
+          "command": "usagesFinder.copyResults",
+          "when": "view == usagesFinder.results",
+          "group": "2_results@1"
+        },
+        {
+          "command": "usagesFinder.clear",
+          "when": "view == usagesFinder.results",
+          "group": "2_results@2"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "usagesFinder.openToSide",
+          "when": "view == usagesFinder.results && viewItem == usage",
+          "group": "navigation@1"
+        },
+        {
+          "command": "usagesFinder.copyUsage",
+          "when": "view == usagesFinder.results && viewItem == usage",
+          "group": "9_cutcopypaste@1"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "usagesFinder.filterReadsActive",
+          "when": "false"
+        },
+        {
+          "command": "usagesFinder.filterWritesActive",
+          "when": "false"
+        },
+        {
+          "command": "usagesFinder.openToSide",
+          "when": "false"
+        },
+        {
+          "command": "usagesFinder.copyUsage",
+          "when": "false"
+        },
+        {
+          "command": "usagesFinder.next",
+          "when": "usagesFinder.hasResults"
+        },
+        {
+          "command": "usagesFinder.previous",
+          "when": "usagesFinder.hasResults"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Usages Finder",
+      "properties": {
+        "usagesFinder.groupBy": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "project",
+              "directory",
+              "file",
+              "namespace",
+              "type",
+              "member",
+              "kind"
+            ]
+          },
+          "uniqueItems": true,
+          "default": [
+            "project",
+            "file"
+          ],
+          "description": "Default grouping levels. Levels are always nested in this order: project, directory, file, namespace, type, member, kind."
+        },
+        "usagesFinder.visibleKinds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "declaration",
+              "definition",
+              "read",
+              "write",
+              "readWrite",
+              "call",
+              "type",
+              "other"
+            ]
+          },
+          "uniqueItems": true,
+          "default": [
+            "declaration",
+            "definition",
+            "read",
+            "write",
+            "readWrite",
+            "call",
+            "type",
+            "other"
+          ],
+          "description": "Default usage kinds shown in the results."
+        },
+        "usagesFinder.scope": {
+          "type": "string",
+          "enum": [
+            "workspace",
+            "project",
+            "directory",
+            "file"
+          ],
+          "enumDescriptions": [
+            "Every workspace folder.",
+            "Only the project (nearest folder containing a project marker) of the file where the search started.",
+            "Only the directory of the file where the search started.",
+            "Only the file where the search started."
+          ],
+          "default": "workspace",
+          "description": "Default search scope applied to the results."
+        },
+        "usagesFinder.projectMarkers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "CMakeLists.txt",
+            "*.vcxproj",
+            "*.csproj",
+            "Makefile",
+            "meson.build",
+            "BUILD.bazel",
+            "BUILD",
+            "Cargo.toml",
+            "package.json"
+          ],
+          "description": "File names (or '*.ext' patterns) that mark a directory as the root of a project. The nearest marked ancestor directory is used for the 'project' grouping and scope. Falls back to the workspace folder."
+        },
+        "usagesFinder.expandResults": {
+          "type": "boolean",
+          "default": true,
+          "description": "Expand all groups when results are shown."
+        },
+        "usagesFinder.maxResults": {
+          "type": "number",
+          "default": 5000,
+          "minimum": 1,
+          "description": "Maximum number of usages that are analyzed. Extra results are dropped and a warning is shown."
+        },
+        "usagesFinder.includeDeclarations": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include declarations and definitions of the symbol in the results."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "test": "npm run compile && node --test out/test/*.test.js",
+    "package": "vsce package --no-dependencies -o dist/",
+    "build": "npm run package",
+    "install:local": "code --install-extension dist/vscode-usages-finder-$npm_package_version.vsix --force",
+    "vscode:prepublish": "npm run compile"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.0.0",
+    "typescript": "^5.4.0"
+  }
+}
