@@ -119,6 +119,7 @@ async function loadSymbols(uri: vscode.Uri): Promise<RawSymbol[]> {
       selCol: sel.start.character,
       selEndLine: sel.end.line,
       selEndCol: sel.end.character,
+      nameRange: { line: sel.start.line, col: sel.start.character, endLine: sel.end.line, endCol: sel.end.character },
     });
   const visit = (list: ReadonlyArray<vscode.DocumentSymbol | vscode.SymbolInformation>) => {
     for (const s of list) {
@@ -409,7 +410,8 @@ export async function findUsages(
         );
       }
       for (const { usage, input } of pending) {
-        Object.assign(usage, findContainer(symbols, usage.line, usage.startCol));
+        const { ranges, ...names } = findContainer(symbols, usage.line, usage.startCol);
+        Object.assign(usage, names, { symbolRanges: ranges });
         usage.kind = classify({ ...input, highlight: highlightKinds.get(`${usage.line}:${usage.startCol}`) });
       }
       onProgress(++done, keys.length);

@@ -33,6 +33,9 @@ export function activate(context: vscode.ExtensionContext): void {
   reg('usagesFinder.clear', () => controller.clear());
   // Internal command used by tree items; ignore calls without a usage from the current results.
   reg('usagesFinder.open', (usage?: Usage) => (controller.isKnownUsage(usage) ? controller.open(usage) : undefined));
+  reg('usagesFinder.openGroup', (node?: TreeNode) =>
+    node?.type === 'group' && controller.isKnownNode(node) ? controller.openTarget(node) : undefined
+  );
   reg('usagesFinder.openToSide', (node: TreeNode) => {
     const usage = usageOf(node);
     return usage && controller.open(usage, { toSide: true, preserveFocus: false });

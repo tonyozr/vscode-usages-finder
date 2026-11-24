@@ -2,6 +2,7 @@ import {
   ACCESS_KINDS,
   ALL_KINDS,
   Filters,
+  GroupTarget,
   GroupLevel,
   GROUP_LEVELS,
   KIND_LABELS,
@@ -16,6 +17,8 @@ export interface GroupNode {
   label: string;
   description?: string;
   count: number;
+  /** Where clicking the group leads to; absent when the group has no location. */
+  target?: GroupTarget;
   children: TreeNode[];
 }
 
@@ -62,6 +65,21 @@ function groupKey(usage: Usage, level: GroupLevel): GroupKey {
   }
 }
 
+function targetOf(level: GroupLevel, usages: readonly Usage[]): GroupTarget | undefined {
+  if (level === 'file') {
+    return { uri: usages[0].uri };
+  }
+  if (level === 'namespace' || level === 'type' || level === 'member') {
+    for (const u of usages) {
+      const range = u.symbolRanges?.[level];
+      if (range) {
+        return { uri: u.uri, range };
+      }
+    }
+  }
+  return undefined;
+}
+
 function compareGroups(level: GroupLevel, a: GroupNode, b: GroupNode): number {
   if (level === 'kind') {
     return ALL_KINDS.indexOf(a.key as never) - ALL_KINDS.indexOf(b.key as never);
@@ -104,13 +122,10 @@ function build(usages: Usage[], levels: GroupLevel[]): TreeNode[] {
     label: g.info.label,
     description: g.info.description,
     count: g.usages.length,
+    target: targetOf(level, g.usages),
     children: build(g.usages, rest),
   }));
   return nodes.sort((a, b) => compareGroups(level, a, b));
-}
-
-export function firstUsage(node: TreeNode): Usage | undefined {
-  return node.type === 'usage' ? node.usage : flatten(node.children)[0];
 }
 
 export function flatten(nodes: readonly TreeNode[]): Usage[] {

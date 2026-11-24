@@ -2,7 +2,7 @@ import * as assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { classify, ClassifyInput } from '../classifier';
 import { findContainer } from '../container';
-import { buildTree, filterUsages, firstUsage, flatten, normalizeLevels } from '../grouping';
+import { buildTree, filterUsages, flatten, normalizeLevels } from '../grouping';
 import { ALL_KINDS, Usage } from '../model';
 
 function at(line: string, name: string, extra: Partial<ClassifyInput> = {}) {
@@ -62,7 +62,9 @@ test('finds enclosing namespace, type and member', () => {
     startCol: 0,
     endLine,
     endCol: 1,
+    nameRange: { line: startLine, col: 2, endLine: startLine, endCol: 2 + name.length },
   });
+  const nr = (line: number, name: string) => ({ line, col: 2, endLine: line, endCol: 2 + name.length });
   const symbols = [
     sym('outer', 'namespace', 0, 40),
     sym('inner', 'namespace', 1, 30),
@@ -70,9 +72,20 @@ test('finds enclosing namespace, type and member', () => {
     sym('draw', 'member', 5, 10),
     sym('Other::run', 'member', 31, 35),
   ];
-  assert.deepEqual(findContainer(symbols, 7, 4), { namespace: 'outer::inner', type: 'Widget', member: 'draw' });
-  assert.deepEqual(findContainer(symbols, 50, 0), { namespace: '', type: '', member: '' });
-  assert.deepEqual(findContainer(symbols, 33, 2), { namespace: 'outer', type: 'Other', member: 'run' });
+  assert.deepEqual(findContainer(symbols, 7, 4), {
+    namespace: 'outer::inner',
+    type: 'Widget',
+    member: 'draw',
+    ranges: { namespace: nr(1, 'inner'), type: nr(2, 'Widget'), member: nr(5, 'draw') },
+  });
+  assert.deepEqual(findContainer(symbols, 50, 0), { namespace: '', type: '', member: '', ranges: {} });
+  // The type is only known by the name in `Other::run`, so there is no location to go to.
+  assert.deepEqual(findContainer(symbols, 33, 2), {
+    namespace: 'outer',
+    type: 'Other',
+    member: 'run',
+    ranges: { namespace: nr(0, 'outer'), type: undefined, member: nr(31, 'Other::run') },
+  });
 });
 
 let nextId = 0;
@@ -154,12 +167,23 @@ test('filters by kind, scope and text', () => {
   assert.equal(filterUsages(sample, { ...base, text: '/(unclosed/' }, origin).length, 0);
 });
 
-test('firstUsage returns the first usage of a group or the usage itself', () => {
-  const a = usage({ type: 'A' });
-  const b = usage({ type: 'B' });
-  const tree = buildTree([a, b], ['type']);
-  assert.equal(firstUsage(tree[0]), flatten([tree[0]])[0]);
-  assert.notEqual(firstUsage(tree[0]), firstUsage(tree[1]));
-  const flat = buildTree([a], []);
-  assert.equal(firstUsage(flat[0]), a);
+test('group targets: file opens the file, symbols their name, others nothing', () => {
+  const r = { line: 4, col: 6, endLine: 4, endCol: 9 };
+  const u = usage({ type: 'Foo', member: 'bar', symbolRanges: { type: r } });
+  const [file] = buildTree([u], ['file']);
+  assert.deepEqual((file as { target: unknown }).target, { uri: u.uri });
+  const [type] = buildTree([u], ['type']);
+  assert.deepEqual((type as { target: unknown }).target, { uri: u.uri, range: r });
+  const [member] = buildTree([u], ['member']);
+  assert.equal((member as { target?: unknown }).target, undefined);
+  const [kind] = buildTree([u], ['kind']);
+  assert.equal((kind as { target?: unknown }).target, undefined);
+});
+
+test('findContainer reports the name range of enclosing symbols', () => {
+  const nameRange = { line: 1, col: 6, endLine: 1, endCol: 9 };
+  const symbols = [
+    { name: 'Foo', kind: 'type' as const, startLine: 1, startCol: 0, endLine: 5, endCol: 1, nameRange },
+  ];
+  assert.deepEqual(findContainer(symbols, 3, 2).ranges, { type: nameRange });
 });

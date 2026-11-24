@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { buildTree, firstUsage, flatten, GroupNode, TreeNode, UsageNode } from './grouping';
+import { buildTree, flatten, GroupNode, TreeNode, UsageNode } from './grouping';
 import { GroupLevel, KIND_LABELS, Usage, UsageKind } from './model';
 
 const KIND_ICONS: Record<UsageKind, string> = {
@@ -107,19 +107,26 @@ export class UsagesTreeProvider implements vscode.TreeDataProvider<TreeNode> {
     item.id = this.ids.get(node);
     item.description = `${node.description ? node.description + '  ' : ''}(${node.count})`;
     item.contextValue = 'group';
-    // Clicking a group opens its first usage; expanding is left to the arrow (see configurationDefaults).
-    const first = firstUsage(node);
-    if (first) {
-      item.command = { command: 'usagesFinder.open', title: 'Open Usage', arguments: [first] };
+    // Clicking a group opens the symbol it stands for; expanding is left to the arrow (see configurationDefaults).
+    if (node.target) {
+      item.command = { command: 'usagesFinder.openGroup', title: 'Open', arguments: [node] };
     }
     if (node.level === 'file') {
-      item.resourceUri = vscode.Uri.parse(firstUsage(node)?.uri ?? '');
+      item.resourceUri = vscode.Uri.parse(this.firstUsage(node)?.uri ?? '');
       item.iconPath = vscode.ThemeIcon.File;
       item.label = node.label;
     } else {
       item.iconPath = new vscode.ThemeIcon(LEVEL_ICONS[node.level]);
     }
     return item;
+  }
+
+  private firstUsage(node: GroupNode): Usage | undefined {
+    return flatten(node.children)[0];
+  }
+
+  isKnownNode(node: unknown): node is TreeNode {
+    return this.ids.has(node as TreeNode);
   }
 
   private usageItem(node: UsageNode): vscode.TreeItem {

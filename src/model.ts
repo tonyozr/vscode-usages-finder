@@ -78,6 +78,20 @@ export const SCOPE_LABELS: Record<Scope, string> = {
   file: 'Current file',
 };
 
+/** Zero-based range of a symbol name in a document. */
+export interface SymbolRange {
+  line: number;
+  col: number;
+  endLine: number;
+  endCol: number;
+}
+
+/** Where a group of usages leads to when clicked: a symbol, or just a file when `range` is absent. */
+export interface GroupTarget {
+  uri: string;
+  range?: SymbolRange;
+}
+
 export interface Usage {
   id: number;
   /** Serialized `vscode.Uri` of the file. */
@@ -91,6 +105,8 @@ export interface Usage {
   namespace: string;
   type: string;
   member: string;
+  /** Locations of the enclosing symbols, when the language server reports them. */
+  symbolRanges?: { namespace?: SymbolRange; type?: SymbolRange; member?: SymbolRange };
   kind: UsageKind;
   /** Zero-based. */
   line: number;

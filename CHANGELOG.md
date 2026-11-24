@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.4
+
+- Clicking a group now goes to the symbol it stands for: a file group opens the file, namespace / type / member groups jump to that symbol's declaration. Groups without a location (project, directory, usage kind, or symbols the language server did not report) do nothing.
+
 ## 0.1.3
 
 - Clicking a file / type / any group opens its first usage instead of expanding or collapsing it; expanding happens only via the arrow (the extension sets `workbench.tree.expandMode` to `doubleClick` by default).

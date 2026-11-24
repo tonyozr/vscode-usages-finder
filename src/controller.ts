@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { findUsages, SearchResult } from './finder';
-import { filterUsages, formatAsText, normalizeLevels, TreeNode } from './grouping';
+import { filterUsages, GroupNode, formatAsText, normalizeLevels, TreeNode } from './grouping';
 import {
   Access,
   ACCESS_LABELS,
@@ -349,6 +349,23 @@ export class UsagesController implements vscode.Disposable {
   /** True when `usage` is one of the usages currently shown in the tree. */
   isKnownUsage(usage: Usage | undefined): usage is Usage {
     return !!usage && this.provider.usages.includes(usage);
+  }
+
+  isKnownNode(node: TreeNode): boolean {
+    return this.provider.isKnownNode(node);
+  }
+
+  async openTarget(node: GroupNode): Promise<void> {
+    const target = node.target;
+    if (!target) {
+      return;
+    }
+    const r = target.range;
+    await vscode.window.showTextDocument(vscode.Uri.parse(target.uri), {
+      selection: r && new vscode.Range(r.line, r.col, r.endLine, r.endCol),
+      preview: true,
+      preserveFocus: true,
+    });
   }
 
   async open(usage: Usage, options: { toSide?: boolean; preserveFocus?: boolean } = {}): Promise<void> {
