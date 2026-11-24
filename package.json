@@ -2,7 +2,7 @@
   "name": "vscode-usages-finder",
   "displayName": "Usages Finder",
   "description": "Find usages of a symbol with read/write classification, usage-kind filters, scopes and multi-level grouping. Built with C/C++ in mind, works with any language that provides references.",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "publisher": "tonyozr",
   "license": "MIT",
   "repository": {
@@ -78,7 +78,11 @@
         "icon": "$(eye)",
         "toggled": {
           "condition": "usagesFinder.access == read",
-          "title": "Reads Only (click to show all)"
+          "title": "Reads Only (click to show all)",
+          "icon": {
+            "light": "media/reads-active-light.svg",
+            "dark": "media/reads-active-dark.svg"
+          }
         }
       },
       {
@@ -88,7 +92,11 @@
         "icon": "$(edit)",
         "toggled": {
           "condition": "usagesFinder.access == write",
-          "title": "Writes Only (click to show all)"
+          "title": "Writes Only (click to show all)",
+          "icon": {
+            "light": "media/writes-active-light.svg",
+            "dark": "media/writes-active-dark.svg"
+          }
         }
       },
       {

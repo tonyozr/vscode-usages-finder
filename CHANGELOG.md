@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.6
+
+- Reads / Writes buttons switch to a blue accent icon while their filter is on, so the state is visible in any theme.
+
 ## 0.1.5
 
 - The Reads / Writes toolbar buttons are highlighted with the active theme's toggle colors while their filter is on (previously only the icon changed).
