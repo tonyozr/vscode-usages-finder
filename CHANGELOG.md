@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.8
+
+- Reads / Writes buttons keep the same icon shape in both states; only the color changes (accent blue while the filter is on).
+
 ## 0.1.7
 
 - Reads / Writes buttons: the active state is now a separate command with a blue icon (the `toggled` highlight did not show in the view toolbar).
