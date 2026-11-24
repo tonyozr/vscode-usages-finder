@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.7
+
+- Reads / Writes buttons: the active state is now a separate command with a blue icon (the `toggled` highlight did not show in the view toolbar).
+
 ## 0.1.6
 
 - Reads / Writes buttons switch to a blue accent icon while their filter is on, so the state is visible in any theme.

@@ -2,7 +2,7 @@
   "name": "vscode-usages-finder",
   "displayName": "Usages Finder",
   "description": "Find usages of a symbol with read/write classification, usage-kind filters, scopes and multi-level grouping. Built with C/C++ in mind, works with any language that provides references.",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "publisher": "tonyozr",
   "license": "MIT",
   "repository": {
@@ -75,28 +75,30 @@
         "command": "usagesFinder.filterReads",
         "title": "Show Reads Only",
         "category": "Usages",
-        "icon": "$(eye)",
-        "toggled": {
-          "condition": "usagesFinder.access == read",
-          "title": "Reads Only (click to show all)",
-          "icon": {
-            "light": "media/reads-active-light.svg",
-            "dark": "media/reads-active-dark.svg"
-          }
+        "icon": "$(eye)"
+      },
+      {
+        "command": "usagesFinder.filterReadsActive",
+        "title": "Reads Only (click to show all)",
+        "category": "Usages",
+        "icon": {
+          "light": "media/reads-active-light.svg",
+          "dark": "media/reads-active-dark.svg"
         }
       },
       {
         "command": "usagesFinder.filterWrites",
         "title": "Show Writes Only",
         "category": "Usages",
-        "icon": "$(edit)",
-        "toggled": {
-          "condition": "usagesFinder.access == write",
-          "title": "Writes Only (click to show all)",
-          "icon": {
-            "light": "media/writes-active-light.svg",
-            "dark": "media/writes-active-dark.svg"
-          }
+        "icon": "$(edit)"
+      },
+      {
+        "command": "usagesFinder.filterWritesActive",
+        "title": "Writes Only (click to show all)",
+        "category": "Usages",
+        "icon": {
+          "light": "media/writes-active-light.svg",
+          "dark": "media/writes-active-dark.svg"
         }
       },
       {
@@ -219,12 +221,22 @@
         },
         {
           "command": "usagesFinder.filterReads",
-          "when": "view == usagesFinder.results",
+          "when": "view == usagesFinder.results && usagesFinder.access != read",
+          "group": "navigation@4"
+        },
+        {
+          "command": "usagesFinder.filterReadsActive",
+          "when": "view == usagesFinder.results && usagesFinder.access == read",
           "group": "navigation@4"
         },
         {
           "command": "usagesFinder.filterWrites",
-          "when": "view == usagesFinder.results",
+          "when": "view == usagesFinder.results && usagesFinder.access != write",
+          "group": "navigation@5"
+        },
+        {
+          "command": "usagesFinder.filterWritesActive",
+          "when": "view == usagesFinder.results && usagesFinder.access == write",
           "group": "navigation@5"
         },
         {
@@ -281,6 +293,14 @@
         }
       ],
       "commandPalette": [
+        {
+          "command": "usagesFinder.filterWritesActive",
+          "when": "false"
+        },
+        {
+          "command": "usagesFinder.filterReadsActive",
+          "when": "false"
+        },
         {
           "command": "usagesFinder.openToSide",
           "when": "false"
