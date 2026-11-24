@@ -13,13 +13,8 @@ export function activate(context: vscode.ExtensionContext): void {
   reg('usagesFinder.find', (uri?: vscode.Uri, position?: vscode.Position) => controller.find(uri, position));
   reg('usagesFinder.findReads', () => controller.find(undefined, undefined, { access: 'read' }));
   reg('usagesFinder.findWrites', () => controller.find(undefined, undefined, { access: 'write' }));
-  // The "active" variants only differ by icon, so the toolbar button reflects the toggle state.
-  for (const id of ['filterReads', 'filterReadsActive']) {
-    reg(`usagesFinder.${id}`, () => controller.toggleAccess('read'));
-  }
-  for (const id of ['filterWrites', 'filterWritesActive']) {
-    reg(`usagesFinder.${id}`, () => controller.toggleAccess('write'));
-  }
+  reg('usagesFinder.filterReads', () => controller.toggleAccess('read'));
+  reg('usagesFinder.filterWrites', () => controller.toggleAccess('write'));
   reg('usagesFinder.refresh', () => controller.refresh());
   reg('usagesFinder.groupBy', () => controller.pickGroupBy());
   reg('usagesFinder.filterKinds', () => controller.pickKinds());

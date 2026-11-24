@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.5
+
+- The Reads / Writes toolbar buttons are highlighted with the active theme's toggle colors while their filter is on (previously only the icon changed).
+
 ## 0.1.4
 
 - Clicking a group now goes to the symbol it stands for: a file group opens the file, namespace / type / member groups jump to that symbol's declaration. Groups without a location (project, directory, usage kind, or symbols the language server did not report) do nothing.
